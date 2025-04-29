@@ -1,0 +1,179 @@
+import { useEffect, useRef, useState } from 'react';
+import { MediaMTXWebRTCPublisher } from '@/assets/scripts/publisher';
+
+const PublisherScreen = () => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [message, setMessage] = useState<string>('');
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [videoDeviceId, setVideoDeviceId] = useState<string>('none');
+  const [audioDeviceId, setAudioDeviceId] = useState<string>('none');
+  const [videoCodec, setVideoCodec] = useState<string>('');
+  const [audioCodec, setAudioCodec] = useState<string>('');
+  const [videoBitrate, setVideoBitrate] = useState<string>('10000');
+  const [videoFramerate, setVideoFramerate] = useState<string>('30');
+  const [videoWidth, setVideoWidth] = useState<string>('1920');
+  const [videoHeight, setVideoHeight] = useState<string>('1080');
+  const [audioBitrate, setAudioBitrate] = useState<string>('32');
+  const [audioVoice, setAudioVoice] = useState<boolean>(true);
+
+  const populateDevices = async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const video = devices.filter((d) => d.kind === 'videoinput');
+    const audio = devices.filter((d) => d.kind === 'audioinput');
+    setVideoDevices(video);
+    setAudioDevices(audio);
+    if (video.length > 0) setVideoDeviceId(video[0].deviceId);
+    if (audio.length > 0) setAudioDeviceId(audio[0].deviceId);
+  };
+
+  const populateCodecs = async () => {
+    const pc = new RTCPeerConnection();
+    pc.addTransceiver('video', { direction: 'sendonly' });
+    pc.addTransceiver('audio', { direction: 'sendonly' });
+    const offer = await pc.createOffer();
+    const sdp = offer.sdp?.toLowerCase() || '';
+
+    if (sdp.includes('h264/90000')) setVideoCodec('h264/90000');
+    if (sdp.includes('vp8/90000')) setVideoCodec('vp8/90000');
+    if (sdp.includes('opus/48000')) setAudioCodec('opus/48000');
+
+    pc.close();
+  };
+
+  useEffect(() => {
+    if (!navigator.mediaDevices) {
+      setMessage("Can't access webcams or microphones.");
+      return;
+    }
+    populateDevices();
+    populateCodecs();
+  }, []);
+
+  const onStream = (stream: MediaStream) => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+    const publisher = new MediaMTXWebRTCPublisher({
+      url: new URL('whip', window.location.href) + window.location.search,
+      stream,
+      videoCodec,
+      videoBitrate,
+      audioCodec,
+      audioBitrate,
+      audioVoice,
+      onError: (err: string) => {
+        setMessage(err);
+      },
+      onConnected: () => {
+        setMessage('');
+      },
+    });
+  };
+
+  const onPublish = async () => {
+    setMessage('Connecting...');
+    let stream: MediaStream;
+
+    if (videoDeviceId === 'screen') {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width: { ideal: parseInt(videoWidth) },
+          height: { ideal: parseInt(videoHeight) },
+          frameRate: { ideal: parseInt(videoFramerate) },
+          cursor: 'always',
+        },
+        audio: true,
+      });
+    } else {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: videoDeviceId !== 'none' ? {
+          deviceId: videoDeviceId,
+          width: { ideal: parseInt(videoWidth) },
+          height: { ideal: parseInt(videoHeight) },
+          frameRate: { ideal: parseInt(videoFramerate) },
+        } : false,
+        audio: audioDeviceId !== 'none' ? {
+          deviceId: audioDeviceId,
+          autoGainControl: !audioVoice,
+          echoCancellation: !audioVoice,
+          noiseSuppression: !audioVoice,
+        } : false,
+      });
+    }
+
+    onStream(stream);
+  };
+
+  return (
+    <div style={{ width: '100%', height: '100%', backgroundColor: '#1e1e1e', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 20 }}>
+      <video ref={videoRef} muted autoPlay playsInline style={{ width: '100%', height: '50%' }} />
+      <div style={{ width: '100%', maxWidth: 500 }}>
+        <div className="item">
+          <label>Video Device</label>
+          <select value={videoDeviceId} onChange={(e) => setVideoDeviceId(e.target.value)}>
+            <option value="none">None</option>
+            {videoDevices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
+            <option value="screen">Screen</option>
+          </select>
+        </div>
+
+        <div className="item">
+          <label>Video Codec</label>
+          <input type="text" value={videoCodec} readOnly />
+        </div>
+
+        <div className="item">
+          <label>Video Bitrate (kbps)</label>
+          <input type="text" value={videoBitrate} onChange={(e) => setVideoBitrate(e.target.value)} />
+        </div>
+
+        <div className="item">
+          <label>Framerate</label>
+          <input type="text" value={videoFramerate} onChange={(e) => setVideoFramerate(e.target.value)} />
+        </div>
+
+        <div className="item">
+          <label>Resolution</label>
+          <input type="text" value={videoWidth} onChange={(e) => setVideoWidth(e.target.value)} placeholder="Width" />
+          <input type="text" value={videoHeight} onChange={(e) => setVideoHeight(e.target.value)} placeholder="Height" />
+        </div>
+
+        <div className="item">
+          <label>Audio Device</label>
+          <select value={audioDeviceId} onChange={(e) => setAudioDeviceId(e.target.value)}>
+            <option value="none">None</option>
+            {audioDevices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
+          </select>
+        </div>
+
+        <div className="item">
+          <label>Audio Codec</label>
+          <input type="text" value={audioCodec} readOnly />
+        </div>
+
+        <div className="item">
+          <label>Audio Bitrate (kbps)</label>
+          <input type="text" value={audioBitrate} onChange={(e) => setAudioBitrate(e.target.value)} />
+        </div>
+
+        <div className="item">
+          <label>Optimize for Voice</label>
+          <input type="checkbox" checked={audioVoice} onChange={(e) => setAudioVoice(e.target.checked)} />
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <button id="publish-button" onClick={onPublish} style={{ height: 50, width: '100%' }}>Publish</button>
+        </div>
+
+        {message && (
+          <div style={{ marginTop: 10, color: 'red' }}>
+            {message}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default PublisherScreen;
