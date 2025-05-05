@@ -106,73 +106,97 @@ const PublisherScreen = () => {
   };
 
   return (
-    <div style={{ width: '100%', height: '100%', backgroundColor: '#1e1e1e', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 20 }}>
-      <video ref={videoRef} muted autoPlay playsInline style={{ width: '100%', height: '50%' }} />
-      <div style={{ width: '100%', maxWidth: 500 }}>
-        <div className="item">
-          <label>Video Device</label>
-          <select value={videoDeviceId} onChange={(e) => setVideoDeviceId(e.target.value)}>
-            <option value="none">None</option>
-            {videoDevices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
-            <option value="screen">Screen</option>
-          </select>
-        </div>
+    <div style={{
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'row',
+  backgroundColor: '#1e1e1e',
+  color: 'white',
+  padding: 20,
+  gap: 20,
+}}>
+  <div style={{ flex: 3 }}>
+    <video
+      ref={videoRef}
+      muted
+      autoPlay
+      playsInline
+      style={{ width: '100%', aspectRatio: '16/9', backgroundColor: 'black', borderRadius: 8 }}
+    />
+  </div>
 
-        <div className="item">
-          <label>Video Codec</label>
-          <input type="text" value={videoCodec} readOnly />
-        </div>
-
-        <div className="item">
-          <label>Video Bitrate (kbps)</label>
-          <input type="text" value={videoBitrate} onChange={(e) => setVideoBitrate(e.target.value)} />
-        </div>
-
-        <div className="item">
-          <label>Framerate</label>
-          <input type="text" value={videoFramerate} onChange={(e) => setVideoFramerate(e.target.value)} />
-        </div>
-
-        <div className="item">
-          <label>Resolution</label>
-          <input type="text" value={videoWidth} onChange={(e) => setVideoWidth(e.target.value)} placeholder="Width" />
-          <input type="text" value={videoHeight} onChange={(e) => setVideoHeight(e.target.value)} placeholder="Height" />
-        </div>
-
-        <div className="item">
-          <label>Audio Device</label>
-          <select value={audioDeviceId} onChange={(e) => setAudioDeviceId(e.target.value)}>
-            <option value="none">None</option>
-            {audioDevices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
-          </select>
-        </div>
-
-        <div className="item">
-          <label>Audio Codec</label>
-          <input type="text" value={audioCodec} readOnly />
-        </div>
-
-        <div className="item">
-          <label>Audio Bitrate (kbps)</label>
-          <input type="text" value={audioBitrate} onChange={(e) => setAudioBitrate(e.target.value)} />
-        </div>
-
-        <div className="item">
-          <label>Optimize for Voice</label>
-          <input type="checkbox" checked={audioVoice} onChange={(e) => setAudioVoice(e.target.checked)} />
-        </div>
-
-        <div style={{ marginTop: 20 }}>
-          <button id="publish-button" onClick={onPublish} style={{ height: 50, width: '100%' }}>Publish</button>
-        </div>
-
-        {message && (
-          <div style={{ marginTop: 10, color: 'red' }}>
-            {message}
-          </div>
-        )}
-      </div>
+  <div style={{
+    flex: 2,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    maxWidth: 500,
+  }}>
+    <div className="item">
+      <label>Video Device</label>
+      <select value={videoDeviceId} onChange={(e) => setVideoDeviceId(e.target.value)}>
+        <option value="none">None</option>
+        {videoDevices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
+        <option value="screen">Screen</option>
+      </select>
     </div>
+
+    <div className="item">
+      <label>Video Codec</label>
+      <input type="text" value={videoCodec} readOnly />
+    </div>
+
+    <div className="item">
+      <label>Video Bitrate (kbps)</label>
+      <input type="text" value={videoBitrate} onChange={(e) => setVideoBitrate(e.target.value)} />
+    </div>
+
+    <div className="item">
+      <label>Framerate</label>
+      <input type="text" value={videoFramerate} onChange={(e) => setVideoFramerate(e.target.value)} />
+    </div>
+
+    <div className="item">
+      <label>Resolution</label>
+      <input type="text" value={videoWidth} onChange={(e) => setVideoWidth(e.target.value)} placeholder="Width" />
+      <input type="text" value={videoHeight} onChange={(e) => setVideoHeight(e.target.value)} placeholder="Height" />
+    </div>
+
+    <div className="item">
+      <label>Audio Device</label>
+      <select value={audioDeviceId} onChange={(e) => setAudioDeviceId(e.target.value)}>
+        <option value="none">None</option>
+        {audioDevices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label}</option>)}
+      </select>
+    </div>
+
+    <div className="item">
+      <label>Audio Codec</label>
+      <input type="text" value={audioCodec} readOnly />
+    </div>
+
+    <div className="item">
+      <label>Audio Bitrate (kbps)</label>
+      <input type="text" value={audioBitrate} onChange={(e) => setAudioBitrate(e.target.value)} />
+    </div>
+
+    <div className="item">
+      <label>Optimize for Voice</label>
+      <input type="checkbox" checked={audioVoice} onChange={(e) => setAudioVoice(e.target.checked)} />
+    </div>
+
+    <button id="publish-button" onClick={onPublish} style={{ height: 50, width: '100%', marginTop: 10 }}>
+      Publish
+    </button>
+
+    {message && (
+      <div style={{ marginTop: 10, color: 'red' }}>
+        {message}
+      </div>
+    )}
+  </div>
+</div>
+
   );
 };
 
