@@ -41,21 +41,48 @@ const CameraSourcePopup: React.FC<CameraSource> = ({
   onClose
 }) => {
   return (
-    <div className="camera-popup-backdrop">
-      <div className="camera-popup-container">
+   <div className="camera-popup-backdrop">
+      <div className="camera-popup-container animate-popup">
         <div className="camera-popup-header">
-          <h2>Camera Source Info</h2>
+          <h2>🎥 {name}</h2>
           <button className="camera-close-btn" onClick={onClose}>×</button>
         </div>
         <div className="camera-popup-content">
-          <div className="info-row"><span>Tên:</span> {name}</div>
-          <div className="info-row"><span>Loại nguồn:</span> {source.type}</div>
-          <div className="info-row"><span>Trạng thái:</span> {ready ? 'Sẵn sàng ✅' : 'Chưa sẵn sàng ❌'}</div>
-          <div className="info-row"><span>Thời gian sẵn sàng:</span> {formatDate(readyTime)}</div>
-          <div className="info-row"><span>Track:</span> {track.join(', ')}</div>
-          <div className="info-row"><span>Dữ liệu nhận:</span> {formatBytes(bytesReceived)}</div>
-          <div className="info-row"><span>Dữ liệu gửi:</span> {formatBytes(bytesSent)}</div>
-          <div className="info-row"><span>Readers:</span> {readers.length}</div>
+          <div className="info-row">
+            <FaVideo className="icon" />
+            <span>Loại nguồn:</span>
+            <span>{source.type}</span>
+          </div>
+          <div className="info-row">
+            {ready ? <FaCheckCircle className="icon green" /> : <FaTimesCircle className="icon red" />}
+            <span>Trạng thái:</span>
+            <span>{ready ? 'Sẵn sàng' : 'Không sẵn sàng'}</span>
+          </div>
+          <div className="info-row">
+            <FaClock className="icon" />
+            <span>Ready lúc:</span>
+            <span>{formatDate(readyTime)}</span>
+          </div>
+          <div className="info-row">
+            <FaCompactDisc className="icon" />
+            <span>Track:</span>
+            <span>{track.join(', ')}</span>
+          </div>
+          <div className="info-row">
+            <FaDownload className="icon" />
+            <span>Đã nhận:</span>
+            <span>{formatBytes(bytesReceived)}</span>
+          </div>
+          <div className="info-row">
+            <FaUpload className="icon" />
+            <span>Đã gửi:</span>
+            <span>{formatBytes(bytesSent)}</span>
+          </div>
+          <div className="info-row">
+            <FaUser className="icon" />
+            <span>Người xem:</span>
+            <span>{readers.length}</span>
+          </div>
         </div>
       </div>
     </div>
