@@ -27,36 +27,40 @@ class _CameraTabbedPanelState extends State<CameraTabbedPanel> {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Thanh Tab scroll ngang
-          SizedBox(
-            height: 40,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: tabs.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
+          // Thanh Tab scroll ngang
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: List.generate(tabs.length, (index) {
                 final bool isSelected = index == selectedTabIndex;
-                return GestureDetector(
-                  onTap: () => setState(() => selectedTabIndex = index),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.transparent : tabInactiveColor,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      tabs[index],
-                      style: const TextStyle(
-                        color: tabTextColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () => setState(() => selectedTabIndex = index),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.transparent : tabInactiveColor,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      alignment: Alignment.center,
+                      height: 40,
+                      child: Text(
+                        tabs[index],
+                        style: const TextStyle(
+                          color: tabTextColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
                 );
-              },
+              }),
             ),
           ),
+
+
           const SizedBox(height: 12),
 
           // Nội dung scroll dọc của tab
