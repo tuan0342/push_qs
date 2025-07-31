@@ -1,81 +1,138 @@
 import 'package:flutter/material.dart';
 
-class CameraControlPanel extends StatelessWidget {
-  final void Function()? onShowCameraStream;
-  final void Function()? onOpticalScan;
-  final void Function()? onTrackObject;
-  final void Function()? onTrackNext;
+class CameraTabbedPanel extends StatefulWidget {
+  const CameraTabbedPanel({super.key});
 
-  const CameraControlPanel({
-    Key? key,
-    this.onShowCameraStream,
-    this.onOpticalScan,
-    this.onTrackObject,
-    this.onTrackNext,
-  }) : super(key: key);
+  @override
+  State<CameraTabbedPanel> createState() => _CameraTabbedPanelState();
+}
 
-  Widget _buildIconButton(IconData icon, String label, {VoidCallback? onTap}) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          height: 64,
-          margin: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: const Color(0xFF2E2E2E),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white30),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: Colors.white70, size: 20),
-              const SizedBox(height: 6),
-              Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopButtons() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: const [
-        Icon(Icons.camera, color: Colors.white),
-        Icon(Icons.flash_on, color: Colors.white),
-        Icon(Icons.track_changes, color: Colors.white),
-      ],
-    );
-  }
+class _CameraTabbedPanelState extends State<CameraTabbedPanel> {
+  final List<String> tabs = ['Nhận dạng', 'Phân loại', 'Chế áp', 'Bắn', 'Video'];
+  int selectedTabIndex = 0;
 
   @override
   Widget build(BuildContext context) {
+    const Color tabInactiveColor = Color(0xFF424240); // Màu nền tab chưa chọn
+    const Color tabTextColor = Colors.white70;
+
     return Container(
-      width: 280,
+      width: 300,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xCC1E1E1E),
+        color: const Color(0xDD1E1E1E), // Nền trong suốt nhẹ
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildTopButtons(),
+          // Thanh Tab scroll ngang
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: tabs.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final bool isSelected = index == selectedTabIndex;
+                return GestureDetector(
+                  onTap: () => setState(() => selectedTabIndex = index),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.transparent : tabInactiveColor,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      tabs[index],
+                      style: const TextStyle(
+                        color: tabTextColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              _buildIconButton(Icons.visibility, 'SHOW CAMERA STREAM', onTap: onShowCameraStream),
-              _buildIconButton(Icons.center_focus_strong, 'OPTICAL SCAN', onTap: onOpticalScan),
-            ],
+
+          // Nội dung scroll dọc của tab
+          Expanded(
+            child: SingleChildScrollView(
+              child: _buildTabContent(tabs[selectedTabIndex]),
+            ),
           ),
-          Row(
-            children: [
-              _buildIconButton(Icons.track_changes, 'TRACK OBJECT', onTap: onTrackObject),
-              _buildIconButton(Icons.skip_next, 'TRACK NEXT', onTap: onTrackNext),
-            ],
-          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabContent(String tab) {
+    const Color contentColor = Color(0xFFB0B0B0); // Màu giống với label trong ảnh
+    TextStyle labelStyle = const TextStyle(color: contentColor, fontSize: 14);
+
+    switch (tab) {
+      case 'Nhận dạng':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _button('SHOW CAMERA STREAM', Icons.visibility),
+            _button('OPTICAL SCAN', Icons.center_focus_strong),
+            _button('TRACK OBJECT', Icons.track_changes),
+            _button('TRACK NEXT', Icons.skip_next),
+          ],
+        );
+      case 'Phân loại':
+        return Column(
+          children: [
+            _button('CLASSIFY VEHICLE', Icons.car_rental),
+            _button('CLASSIFY PERSON', Icons.person),
+          ],
+        );
+      case 'Chế áp':
+        return Column(
+          children: [
+            _button('JAM TARGET', Icons.wifi_off),
+            _button('DISABLE SENSORS', Icons.sensors_off),
+          ],
+        );
+      case 'Bắn':
+        return Column(
+          children: [
+            _button('ARM WEAPON', Icons.security),
+            _button('FIRE', Icons.bolt),
+          ],
+        );
+      case 'Video':
+        return Column(
+          children: [
+            _button('RECORD', Icons.fiber_manual_record),
+            _button('SNAPSHOT', Icons.camera_alt),
+          ],
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _button(String label, IconData icon) {
+    return Container(
+      height: 64,
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2E2E2E),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white30),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.white70),
+          const SizedBox(width: 8),
+          Text(label, style: const TextStyle(color: Colors.white70)),
         ],
       ),
     );
