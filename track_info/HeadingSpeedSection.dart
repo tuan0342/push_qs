@@ -30,55 +30,6 @@ class HeadingSpeedSection extends StatelessWidget {
   }
 }
 
-class SpeedCircle extends StatelessWidget {
-  final int heading;
-  final int speed;
-
-  const SpeedCircle({super.key, required this.heading, required this.speed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 100,
-      height: 100,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [Colors.black, Colors.redAccent],
-          center: Alignment.bottomCenter,
-          radius: 0.9,
-        ),
-        border: Border.all(color: Colors.white, width: 2),
-      ),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            '$heading°',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          Text(
-            '$speed.0',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-            ),
-          ),
-          const Text(
-            'm/s',
-            style: TextStyle(color: Colors.white70, fontSize: 10),
-          ),
-        ],
-      ),
-    );
-  }
-}
 class _AltitudeItem extends StatelessWidget {
   final String label;
   final String value;
@@ -104,3 +55,82 @@ class _AltitudeItem extends StatelessWidget {
   }
 }
 
+class SpeedCircle extends StatelessWidget {
+  final int heading;
+  final int speed;
+
+  const SpeedCircle({super.key, required this.heading, required this.speed});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 100,
+      height: 100,
+      child: Stack(
+        children: [
+          CustomPaint(
+            size: const Size(100, 100),
+            painter: _HalfCirclePainter(),
+          ),
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 10),
+                Text(
+                  '$heading°',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  '$speed.0',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const Text(
+                  'm/s',
+                  style: TextStyle(color: Colors.white70, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HalfCirclePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint borderPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    final Paint topPaint = Paint()..color = Colors.black;
+    final Paint bottomPaint = Paint()..color = Colors.red.shade700;
+
+    final Rect rect = Rect.fromLTWH(0, 0, size.width, size.height);
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    // Vẽ nửa trên (đen)
+    canvas.drawArc(rect, -pi, pi, false, topPaint);
+
+    // Vẽ nửa dưới (đỏ)
+    canvas.drawArc(rect, 0, pi, false, bottomPaint);
+
+    // Viền ngoài
+    canvas.drawCircle(center, radius, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
