@@ -1,6 +1,0 @@
-root-config 0.1.0
-utility 0.1.2
-styleguide 0.0.5
-mfe-react-streams 0.0.7
-mfe-react-login 0.0.3
-mfe-react-sidebar 0.0.2
