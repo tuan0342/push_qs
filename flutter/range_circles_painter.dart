@@ -1,47 +1,51 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:flutter_map/flutter_map.dart';
 
 class RangeCirclesPainter extends CustomPainter {
   final LatLng center;
   final List<double> radiiInKm;
-  final double zoom;
-  final double width;
-  final double height;
+  final MapController mapController;
 
   RangeCirclesPainter({
     required this.center,
     required this.radiiInKm,
-    required this.zoom,
-    required this.width,
-    required this.height,
+    required this.mapController,
   });
 
-  double _metersPerPixel(double latitude, double zoom) {
-    const earthCircumference = 40075016.686; // meters
-    final scale = 1 << zoom.toInt();
-    return earthCircumference * cos(latitude * pi / 180) / (256 * scale);
+  // Hàm tính bán kính theo pixel
+  double _calculateRadiusInPixels(double radiusInKm, double latitude, double zoom) {
+    const earthRadius = 6378137.0; // Earth radius in meters
+    final radiusInMeters = radiusInKm * 1000;
+    final scale = 256 * pow(2, zoom);
+    return radiusInMeters / (2 * pi * earthRadius) * scale / cos(latitude * pi / 180);
   }
 
   @override
   void paint(Canvas canvas, Size size) {
-    final centerOffset = Offset(width / 2, height / 2);
-    final metersPerPixel = _metersPerPixel(center.latitude, zoom);
+    final pixelPoint = mapController.latLngToScreenPoint(center);
+    if (pixelPoint == null) return;
 
-    final Paint paint = Paint()
+    final centerOffset = Offset(pixelPoint.x.toDouble(), pixelPoint.y.toDouble());
+
+    final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
-    for (int i = 0; i < radiiInKm.length; i++) {
-      final radiusInMeters = radiiInKm[i] * 1000;
-      final radiusInPixels = radiusInMeters / metersPerPixel;
+    final zoom = mapController.camera.zoom;
+    final latitude = center.latitude;
 
-      paint.color = Colors.blue.withOpacity(1 - i * 0.15); // đậm hơn ở vòng trong
+    for (int i = 0; i < radiiInKm.length; i++) {
+      final radiusInPixels = _calculateRadiusInPixels(radiiInKm[i], latitude, zoom);
+
+      paint.color = Colors.blue.withOpacity(1 - i * 0.15); // nhạt dần theo bán kính
 
       canvas.drawCircle(centerOffset, radiusInPixels, paint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant RangeCirclesPainter oldDelegate) =>
+      oldDelegate.mapController.camera != mapController.camera;
 }
