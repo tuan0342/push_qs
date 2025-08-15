@@ -1,63 +1,93 @@
-Future<MyObject?> showCreateMyObjectDialog(BuildContext context) {
-  final formKey = GlobalKey<FormState>();
-  final nameCtrl = TextEditingController();
-  final ipCtrl = TextEditingController();
-  final latCtrl = TextEditingController();
-  final longCtrl = TextEditingController();
-  ObjectType typeVal = ObjectType.UUUU;
+import 'package:flutter/material.dart';
+import 'package:reactive_forms/reactive_forms.dart';
 
-  return showDialog<MyObject?>(
-    context: context,
-    builder: (_) => AlertDialog(
-      backgroundColor: const Color.fromRGBO(31, 31, 31, 0.92),
-      title: const Text('Thêm thiết bị', style: TextStyle(color: Colors.white)),
-      content: SizedBox(
-        width: 420,
-        child: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _field(label: 'Name', controller: nameCtrl, validator: _required),
-              const SizedBox(height: 10),
-              _field(label: 'IP', controller: ipCtrl, validator: _ipValidator),
-              const SizedBox(height: 10),
-              _numberField(label: 'Lat', controller: latCtrl),
-              const SizedBox(height: 10),
-              _numberField(label: 'Long', controller: longCtrl),
-              const SizedBox(height: 10),
-              _typeDropdown(
-                value: typeVal,
-                onChanged: (v) {
-                  if (v != null) typeVal = v;
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Hủy'),
-        ),
-        FilledButton(
-          onPressed: () {
-            if (formKey.currentState!.validate()) {
-              final obj = MyObject(
-                id: '', // sẽ bỏ qua khi POST
-                name: nameCtrl.text.trim(),
-                ip: ipCtrl.text.trim(),
-                lat: double.tryParse(latCtrl.text.trim()) ?? 0,
-                long: double.tryParse(longCtrl.text.trim()) ?? 0,
-                type: typeVal,
-              );
-              Navigator.pop(context, obj);
+class ReactiveLatLngField extends ReactiveFormField<double, double> {
+  ReactiveLatLngField({
+    super.key,
+    required String formControlName,
+    required String label,
+  }) : super(
+          formControlName: formControlName,
+          builder: (field) {
+            final double value = field.value ?? 0;
+            final dms = _decimalToDMS(value);
+
+            final degreesCtrl = TextEditingController(text: dms.degrees.toString());
+            final minutesCtrl = TextEditingController(text: dms.minutes.toString());
+            final secondsCtrl = TextEditingController(text: dms.seconds.toString());
+
+            void updateValue() {
+              final deg = int.tryParse(degreesCtrl.text) ?? 0;
+              final min = int.tryParse(minutesCtrl.text) ?? 0;
+              final sec = double.tryParse(secondsCtrl.text) ?? 0;
+              final decimal = _dmsToDecimal(deg, min, sec);
+              field.didChange(decimal);
             }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: Colors.white70)),
+                Row(
+                  children: [
+                    _dmsInput(degreesCtrl, '°', onChanged: updateValue),
+                    const SizedBox(width: 8),
+                    _dmsInput(minutesCtrl, '\'', onChanged: updateValue),
+                    const SizedBox(width: 8),
+                    _dmsInput(secondsCtrl, '"', onChanged: updateValue),
+                  ],
+                ),
+                if (field.hasError)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      field.errorText ?? '',
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ),
+              ],
+            );
           },
-          child: const Text('Tạo'),
-        ),
-      ],
+        );
+
+  @override
+  ReactiveFormFieldState<double, double> createState() =>
+      ReactiveFormFieldState<double, double>();
+}
+Widget _dmsInput(TextEditingController ctrl, String suffix, {required VoidCallback onChanged}) {
+  return SizedBox(
+    width: 70,
+    child: TextField(
+      controller: ctrl,
+      keyboardType: TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(
+        suffixText: suffix,
+        isDense: true,
+        border: const OutlineInputBorder(),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      ),
+      style: const TextStyle(color: Colors.white),
+      onChanged: (_) => onChanged(),
     ),
   );
+}
+
+class DMS {
+  final int degrees;
+  final int minutes;
+  final double seconds;
+
+  DMS(this.degrees, this.minutes, this.seconds);
+}
+
+DMS _decimalToDMS(double decimal) {
+  final degrees = decimal.truncate();
+  final minutesDecimal = (decimal - degrees) * 60;
+  final minutes = minutesDecimal.truncate();
+  final seconds = (minutesDecimal - minutes) * 60;
+  return DMS(degrees, minutes, seconds);
+}
+
+double _dmsToDecimal(int degrees, int minutes, double seconds) {
+  return degrees + minutes / 60 + seconds / 3600;
 }
