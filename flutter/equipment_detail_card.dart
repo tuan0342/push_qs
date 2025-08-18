@@ -1,119 +1,110 @@
-class ReactiveLatLngField extends StatefulWidget {
-  final String formControlName;
-  final String label;
-  final bool isLongitude;
+import 'package:flutter/material.dart';
+import 'package:reactive_forms/reactive_forms.dart';
 
-  const ReactiveLatLngField({
+class ReactiveLatLngField extends ReactiveFormField<double, DMSValue> {
+  ReactiveLatLngField({
     super.key,
-    required this.formControlName,
-    required this.label,
-    required this.isLongitude,
-  });
-
-  @override
-  State<ReactiveLatLngField> createState() => _ReactiveLatLngFieldState();
+    required String formControlName,
+    required String label,
+    required bool isLongitude,
+  }) : super(
+          formControlName: formControlName,
+          valueAccessor: LatLngValueAccessor(),
+          validationMessages: (control) => {
+            ValidationMessage.min: isLongitude
+                ? 'Kinh độ phải nằm trong khoảng 97 - 117'
+                : 'Vĩ độ phải nằm trong khoảng 5 - 30',
+            ValidationMessage.max: isLongitude
+                ? 'Kinh độ phải nằm trong khoảng 97 - 117'
+                : 'Vĩ độ phải nằm trong khoảng 5 - 30',
+          },
+          builder: (field) {
+            final value = field.value ?? const DMSValue(0, 0, 0);
+            return LatLngDMSInput(
+              label: label,
+              value: value,
+              onChanged: field.didChange,
+              isLongitude: isLongitude,
+              errorText: field.errorText,
+            );
+          },
+        );
 }
 
-class _ReactiveLatLngFieldState extends State<ReactiveLatLngField> {
-  late final TextEditingController degCtrl;
-  late final TextEditingController minCtrl;
-  late final TextEditingController secCtrl;
+import 'package:flutter/material.dart';
 
-  @override
-  void initState() {
-    super.initState();
-    degCtrl = TextEditingController();
-    minCtrl = TextEditingController();
-    secCtrl = TextEditingController();
-  }
+class LatLngDMSInput extends StatelessWidget {
+  final String label;
+  final DMSValue value;
+  final ValueChanged<DMSValue> onChanged;
+  final bool isLongitude;
+  final String? errorText;
 
-  @override
-  void dispose() {
-    degCtrl.dispose();
-    minCtrl.dispose();
-    secCtrl.dispose();
-    super.dispose();
+  const LatLngDMSInput({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    required this.isLongitude,
+    this.errorText,
+  });
+
+  void _handleChange(BuildContext context, String degText, String minText, String secText) {
+    int deg = int.tryParse(degText) ?? 0;
+    int min = int.tryParse(minText) ?? 0;
+    int sec = int.tryParse(secText) ?? 0;
+
+    // Convert overflow
+    if (sec >= 60) {
+      min += sec ~/ 60;
+      sec %= 60;
+    }
+    if (min >= 60) {
+      deg += min ~/ 60;
+      min %= 60;
+    }
+
+    onChanged(DMSValue(deg, min, sec));
   }
 
   @override
   Widget build(BuildContext context) {
-    return ReactiveFormField<double, double>(
-      formControlName: widget.formControlName,
-      validationMessages: (control) => {
-        ValidationMessage.min: widget.isLongitude
-            ? 'Kinh độ phải nằm trong khoảng 97 - 117'
-            : 'Vĩ độ phải nằm trong khoảng 5 - 30',
-        ValidationMessage.max: widget.isLongitude
-            ? 'Kinh độ phải nằm trong khoảng 97 - 117'
-            : 'Vĩ độ phải nằm trong khoảng 5 - 30',
-      },
-      builder: (field) {
-        // Chỉ gán giá trị nếu field.value thay đổi
-        if (field.value != null) {
-          final dms = _decimalToDMS(field.value!);
-          if (!_isEditing()) {
-            degCtrl.text = dms[0].toString();
-            minCtrl.text = dms[1].toString();
-            secCtrl.text = dms[2].toString();
-          }
-        }
+    final degCtrl = TextEditingController(text: value.deg.toString());
+    final minCtrl = TextEditingController(text: value.min.toString());
+    final secCtrl = TextEditingController(text: value.sec.toString());
 
-        void onChanged() {
-          int deg = int.tryParse(degCtrl.text) ?? 0;
-          int min = int.tryParse(minCtrl.text) ?? 0;
-          int sec = int.tryParse(secCtrl.text) ?? 0;
-
-          // Convert overflow
-          if (sec >= 60) {
-            min += sec ~/ 60;
-            sec = sec % 60;
-          }
-
-          if (min >= 60) {
-            deg += min ~/ 60;
-            min = min % 60;
-          }
-
-          double decimal = deg + min / 60 + sec / 3600;
-          field.didChange(decimal);
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 6),
+        Row(
           children: [
-            Text(widget.label, style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                _buildIntField(degCtrl, '°', onChanged, flex: 3),
-                const SizedBox(width: 8),
-                _buildIntField(minCtrl, '\'', onChanged, flex: 2),
-                const SizedBox(width: 8),
-                _buildIntField(secCtrl, '"', onChanged, flex: 2),
-              ],
-            ),
-            if (field.control.invalid && field.control.touched)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  field.errorText ?? '',
-                  style: const TextStyle(color: Colors.red, fontSize: 12),
-                ),
-              ),
+            _buildField(context, degCtrl, '°', (v) => _handleChange(context, v, minCtrl.text, secCtrl.text), flex: 3),
+            const SizedBox(width: 8),
+            _buildField(context, minCtrl, '\'', (v) => _handleChange(context, degCtrl.text, v, secCtrl.text), flex: 2),
+            const SizedBox(width: 8),
+            _buildField(context, secCtrl, '"', (v) => _handleChange(context, degCtrl.text, minCtrl.text, v), flex: 2),
           ],
-        );
-      },
+        ),
+        if (errorText != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(errorText!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+          ),
+      ],
     );
   }
 
-  Widget _buildIntField(TextEditingController ctrl, String suffix,
-      VoidCallback onChanged, {required int flex}) {
+  Widget _buildField(BuildContext context, TextEditingController controller, String suffix,
+      ValueChanged<String> onChanged,
+      {required int flex}) {
     return Expanded(
       flex: flex,
       child: TextField(
-        controller: ctrl,
+        controller: controller,
         keyboardType: TextInputType.number,
-        onChanged: (_) => onChanged(),
+        onChanged: onChanged,
         decoration: InputDecoration(
           suffixText: suffix,
           border: const OutlineInputBorder(),
@@ -122,17 +113,37 @@ class _ReactiveLatLngFieldState extends State<ReactiveLatLngField> {
       ),
     );
   }
+}
 
-  List<int> _decimalToDMS(double value) {
-    int degrees = value.floor();
-    double fractional = value - degrees;
-    int minutes = (fractional * 60).floor();
-    int seconds = ((fractional * 60 - minutes) * 60).round();
-    return [degrees, minutes, seconds];
+import 'package:reactive_forms/reactive_forms.dart';
+
+class LatLngValueAccessor extends ControlValueAccessor<double, DMSValue> {
+  @override
+  DMSValue? modelToViewValue(double? modelValue) {
+    if (modelValue == null) return const DMSValue(0, 0, 0);
+    return DMSValue.fromDecimal(modelValue);
   }
 
-  bool _isEditing() {
-    // Kiểm tra nếu người dùng đang gõ để không override text
-    return FocusScope.of(context).hasFocus;
+  @override
+  double? viewToModelValue(DMSValue? viewValue) {
+    return viewValue?.toDecimal();
+  }
+}
+
+class DMSValue {
+  final int deg;
+  final int min;
+  final int sec;
+
+  const DMSValue(this.deg, this.min, this.sec);
+
+  double toDecimal() => deg + min / 60 + sec / 3600;
+
+  static DMSValue fromDecimal(double decimal) {
+    final degrees = decimal.floor();
+    final minutesFull = (decimal - degrees) * 60;
+    final minutes = minutesFull.floor();
+    final seconds = ((minutesFull - minutes) * 60).round();
+    return DMSValue(degrees, minutes, seconds);
   }
 }
