@@ -1,7 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:reactive_forms/reactive_forms.dart';
-
-class ReactiveLatLngField extends StatelessWidget {
+class ReactiveLatLngField extends StatefulWidget {
   final String formControlName;
   final String label;
   final bool isLongitude;
@@ -14,24 +11,52 @@ class ReactiveLatLngField extends StatelessWidget {
   });
 
   @override
+  State<ReactiveLatLngField> createState() => _ReactiveLatLngFieldState();
+}
+
+class _ReactiveLatLngFieldState extends State<ReactiveLatLngField> {
+  late final TextEditingController degCtrl;
+  late final TextEditingController minCtrl;
+  late final TextEditingController secCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    degCtrl = TextEditingController();
+    minCtrl = TextEditingController();
+    secCtrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    degCtrl.dispose();
+    minCtrl.dispose();
+    secCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ReactiveFormField<double, double>(
-      formControlName: formControlName,
+      formControlName: widget.formControlName,
       validationMessages: (control) => {
-        ValidationMessage.min: isLongitude
+        ValidationMessage.min: widget.isLongitude
             ? 'Kinh độ phải nằm trong khoảng 97 - 117'
             : 'Vĩ độ phải nằm trong khoảng 5 - 30',
-        ValidationMessage.max: isLongitude
+        ValidationMessage.max: widget.isLongitude
             ? 'Kinh độ phải nằm trong khoảng 97 - 117'
             : 'Vĩ độ phải nằm trong khoảng 5 - 30',
       },
       builder: (field) {
-        final value = field.value ?? 0;
-        final dms = _decimalToDMS(value);
-
-        final degCtrl = TextEditingController(text: dms[0].toString());
-        final minCtrl = TextEditingController(text: dms[1].toString());
-        final secCtrl = TextEditingController(text: dms[2].toString());
+        // Chỉ gán giá trị nếu field.value thay đổi
+        if (field.value != null) {
+          final dms = _decimalToDMS(field.value!);
+          if (!_isEditing()) {
+            degCtrl.text = dms[0].toString();
+            minCtrl.text = dms[1].toString();
+            secCtrl.text = dms[2].toString();
+          }
+        }
 
         void onChanged() {
           int deg = int.tryParse(degCtrl.text) ?? 0;
@@ -50,22 +75,13 @@ class ReactiveLatLngField extends StatelessWidget {
           }
 
           double decimal = deg + min / 60 + sec / 3600;
-
           field.didChange(decimal);
-
-          // Update the UI controllers after conversion
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            degCtrl.text = deg.toString();
-            minCtrl.text = min.toString();
-            secCtrl.text = sec.toString();
-          });
         }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label,
-                style: Theme.of(context).textTheme.labelLarge),
+            Text(widget.label, style: Theme.of(context).textTheme.labelLarge),
             const SizedBox(height: 6),
             Row(
               children: [
@@ -91,8 +107,7 @@ class ReactiveLatLngField extends StatelessWidget {
   }
 
   Widget _buildIntField(TextEditingController ctrl, String suffix,
-      VoidCallback onChanged,
-      {required int flex}) {
+      VoidCallback onChanged, {required int flex}) {
     return Expanded(
       flex: flex,
       child: TextField(
@@ -108,12 +123,16 @@ class ReactiveLatLngField extends StatelessWidget {
     );
   }
 
-  /// Convert from decimal to [degrees, minutes, seconds]
   List<int> _decimalToDMS(double value) {
     int degrees = value.floor();
     double fractional = value - degrees;
     int minutes = (fractional * 60).floor();
     int seconds = ((fractional * 60 - minutes) * 60).round();
     return [degrees, minutes, seconds];
+  }
+
+  bool _isEditing() {
+    // Kiểm tra nếu người dùng đang gõ để không override text
+    return FocusScope.of(context).hasFocus;
   }
 }
