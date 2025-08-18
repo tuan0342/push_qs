@@ -1,111 +1,119 @@
 import 'package:flutter/material.dart';
 import 'package:reactive_forms/reactive_forms.dart';
 
-class ReactiveLatLngField extends ReactiveFormField<double, double> {
-  ReactiveLatLngField({
+class ReactiveLatLngField extends StatelessWidget {
+  final String formControlName;
+  final String label;
+  final bool isLongitude;
+
+  const ReactiveLatLngField({
     super.key,
-    required String formControlName,
-    required String label,
-    required bool isLongitude, // true: long, false: lat
-  }) : super(
-          formControlName: formControlName,
-          validationMessages: (control) => {
-            'outOfRange': isLongitude
-                ? 'Kinh độ phải nằm trong khoảng 97 - 117'
-                : 'Vĩ độ phải nằm trong khoảng 5 - 30',
-          },
-          builder: (field) {
-            final double value = field.value ?? 0;
-            final dms = _decimalToDMS(value);
-
-            final degCtrl = TextEditingController(text: dms.degrees.toString());
-            final minCtrl = TextEditingController(text: dms.minutes.toString());
-            final secCtrl = TextEditingController(text: dms.seconds.toStringAsFixed(2));
-
-            void updateValue() {
-              final deg = int.tryParse(degCtrl.text) ?? 0;
-              final min = int.tryParse(minCtrl.text) ?? 0;
-              final sec = double.tryParse(secCtrl.text) ?? 0.0;
-
-              final decimal = _dmsToDecimal(deg, min, sec);
-              field.didChange(decimal);
-
-              // Validate range
-              if (isLongitude && (decimal < 97 || decimal > 117)) {
-                field.control.setErrors({'outOfRange': true});
-              } else if (!isLongitude && (decimal < 5 || decimal > 30)) {
-                field.control.setErrors({'outOfRange': true});
-              } else {
-                field.control.removeError('outOfRange');
-              }
-            }
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(color: Colors.white70)),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    _dmsInput(degCtrl, '°', onChanged: updateValue),
-                    const SizedBox(width: 6),
-                    _dmsInput(minCtrl, '\'', onChanged: updateValue),
-                    const SizedBox(width: 6),
-                    _dmsInput(secCtrl, '"', onChanged: updateValue),
-                  ],
-                ),
-                if (field.control.invalid && field.control.touched)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      field.control.errors.values.first.toString(),
-                      style: const TextStyle(color: Colors.red, fontSize: 12),
-                    ),
-                  ),
-              ],
-            );
-          },
-        );
+    required this.formControlName,
+    required this.label,
+    required this.isLongitude,
+  });
 
   @override
-  ReactiveFormFieldState<double, double> createState() =>
-      ReactiveFormFieldState<double, double>();
-}
+  Widget build(BuildContext context) {
+    return ReactiveFormField<double, double>(
+      formControlName: formControlName,
+      validationMessages: (control) => {
+        ValidationMessage.min: isLongitude
+            ? 'Kinh độ phải nằm trong khoảng 97 - 117'
+            : 'Vĩ độ phải nằm trong khoảng 5 - 30',
+        ValidationMessage.max: isLongitude
+            ? 'Kinh độ phải nằm trong khoảng 97 - 117'
+            : 'Vĩ độ phải nằm trong khoảng 5 - 30',
+      },
+      builder: (field) {
+        final value = field.value ?? 0;
+        final dms = _decimalToDMS(value);
 
-class DMS {
-  final int degrees;
-  final int minutes;
-  final double seconds;
+        final degCtrl = TextEditingController(text: dms[0].toString());
+        final minCtrl = TextEditingController(text: dms[1].toString());
+        final secCtrl = TextEditingController(text: dms[2].toString());
 
-  DMS(this.degrees, this.minutes, this.seconds);
-}
+        void onChanged() {
+          int deg = int.tryParse(degCtrl.text) ?? 0;
+          int min = int.tryParse(minCtrl.text) ?? 0;
+          int sec = int.tryParse(secCtrl.text) ?? 0;
 
-DMS _decimalToDMS(double decimal) {
-  final degrees = decimal.truncate();
-  final minutesDecimal = (decimal - degrees) * 60;
-  final minutes = minutesDecimal.truncate();
-  final seconds = (minutesDecimal - minutes) * 60;
-  return DMS(degrees, minutes, seconds);
-}
+          // Convert overflow
+          if (sec >= 60) {
+            min += sec ~/ 60;
+            sec = sec % 60;
+          }
 
-double _dmsToDecimal(int degrees, int minutes, double seconds) {
-  return degrees + minutes / 60 + seconds / 3600;
-}
+          if (min >= 60) {
+            deg += min ~/ 60;
+            min = min % 60;
+          }
 
-Widget _dmsInput(TextEditingController ctrl, String suffix, {required VoidCallback onChanged}) {
-  return SizedBox(
-    width: 72,
-    child: TextField(
-      controller: ctrl,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(
-        isDense: true,
-        suffixText: suffix,
-        border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          double decimal = deg + min / 60 + sec / 3600;
+
+          field.didChange(decimal);
+
+          // Update the UI controllers after conversion
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            degCtrl.text = deg.toString();
+            minCtrl.text = min.toString();
+            secCtrl.text = sec.toString();
+          });
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                _buildIntField(degCtrl, '°', onChanged, flex: 3),
+                const SizedBox(width: 8),
+                _buildIntField(minCtrl, '\'', onChanged, flex: 2),
+                const SizedBox(width: 8),
+                _buildIntField(secCtrl, '"', onChanged, flex: 2),
+              ],
+            ),
+            if (field.control.invalid && field.control.touched)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  field.errorText ?? '',
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildIntField(TextEditingController ctrl, String suffix,
+      VoidCallback onChanged,
+      {required int flex}) {
+    return Expanded(
+      flex: flex,
+      child: TextField(
+        controller: ctrl,
+        keyboardType: TextInputType.number,
+        onChanged: (_) => onChanged(),
+        decoration: InputDecoration(
+          suffixText: suffix,
+          border: const OutlineInputBorder(),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        ),
       ),
-      style: const TextStyle(color: Colors.white),
-      onChanged: (_) => onChanged(),
-    ),
-  );
+    );
+  }
+
+  /// Convert from decimal to [degrees, minutes, seconds]
+  List<int> _decimalToDMS(double value) {
+    int degrees = value.floor();
+    double fractional = value - degrees;
+    int minutes = (fractional * 60).floor();
+    int seconds = ((fractional * 60 - minutes) * 60).round();
+    return [degrees, minutes, seconds];
+  }
 }
