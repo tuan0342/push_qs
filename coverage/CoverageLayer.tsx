@@ -1,23 +1,21 @@
 import React, { useMemo } from "react";
 import { Source, Layer } from "react-map-gl";
 import * as turf from "@turf/turf";
-// ⬇️ nhớ cài: npm i @turf/dissolve
-import dissolve from "@turf/dissolve";
 
 type Coordinate = { x: number; y: number }; // x: lon, y: lat
 type Coverage = {
   centerCoordinate: Coordinate;
-  blindCoordinates: Coordinate[];   // (không bắt buộc dùng để merge)
-  detectCoordinates: Coordinate[];  // (không bắt buộc dùng để merge)
-  blindRadius: number;   // meters
-  detecRadius: number;   // meters
+  blindCoordinates: Coordinate[];
+  detectCoordinates: Coordinate[];
+  blindRadius: number;  // meters
+  detecRadius: number;  // meters
 };
 
-export default function CoverageMergedLayer({
-  id = "coverage-merged",
+export default function CoverageMergeDetectKeepBlind({
+  id = "coverage-merge-detect",
   coverageList,
   steps = 64,
-  showPoints = false
+  showPoints = false,
 }: {
   id?: string;
   coverageList: Coverage[];
@@ -25,15 +23,14 @@ export default function CoverageMergedLayer({
   showPoints?: boolean;
 }) {
   const {
-    donutFC,       // unionDetect \ unionBlind
-    blindUnionFC,  // union blind (màu #86efac)
-    detectOutlineFC,
+    detectMergedFC,     // union của toàn bộ detect, đã tách thành nhiều polygon nếu rời nhau
+    blindFC,            // tất cả blind (KHÔNG merge)
+    detectOutlineFC,    // outline detect union
     blindPtsFC,
-    detectPtsFC
+    detectPtsFC,
   } = useMemo(() => {
-    // 1) tạo các vòng tròn
-    const blindPolys: turf.Feature<turf.Polygon>[] = [];
     const detectPolys: turf.Feature<turf.Polygon>[] = [];
+    const blindPolys: turf.Feature<turf.Polygon>[] = [];
     const blindPts: turf.Feature<turf.Point>[] = [];
     const detectPts: turf.Feature<turf.Point>[] = [];
 
@@ -41,9 +38,6 @@ export default function CoverageMergedLayer({
       const center: [number, number] = [c.centerCoordinate.x, c.centerCoordinate.y];
       const blind = turf.circle(center, c.blindRadius, { steps, units: "meters" }) as turf.Feature<turf.Polygon>;
       const detect = turf.circle(center, c.detecRadius, { steps, units: "meters" }) as turf.Feature<turf.Polygon>;
-      // Đặt thuộc tính để dissolve theo lớp
-      blind.properties = { layer: "blind" };
-      detect.properties = { layer: "detect" };
       blindPolys.push(blind);
       detectPolys.push(detect);
 
@@ -53,118 +47,95 @@ export default function CoverageMergedLayer({
       }
     }
 
-    // 2) gộp mỗi lớp
-    const blindFC = turf.featureCollection(blindPolys);
-    const detectFC = turf.featureCollection(detectPolys);
-
-    const blindUnion = blindPolys.length > 0 ? dissolve(blindFC, { propertyName: "layer" }) : turf.featureCollection([]);
-    const detectUnion = detectPolys.length > 0 ? dissolve(detectFC, { propertyName: "layer" }) : turf.featureCollection([]);
-
-    // dissolve trả FC theo nhóm; lấy tất cả features layer="blind"/"detect"
-    const blindUnionFeature =
-      (blindUnion as turf.FeatureCollection).features.find(f => f.properties?.layer === "blind") ??
-      (blindPolys[0] ? blindPolys[0] : null);
-
-    const detectUnionFeature =
-      (detectUnion as turf.FeatureCollection).features.find(f => f.properties?.layer === "detect") ??
-      (detectPolys[0] ? detectPolys[0] : null);
-
-    // 3) donut = detectUnion \ blindUnion
-    let donutFeature: turf.Feature<turf.Polygon | turf.MultiPolygon> | null = null;
-    try {
-      if (detectUnionFeature) {
-        donutFeature = blindUnionFeature
-          ? (turf.difference(detectUnionFeature as any, blindUnionFeature as any) as any)
-          : (detectUnionFeature as any);
+    // --- Union TẤT CẢ detect (merge các vùng giao nhau, giữ vùng rời như mảnh riêng) ---
+    let merged: turf.Feature<turf.Polygon | turf.MultiPolygon> | null = null;
+    for (const poly of detectPolys) {
+      try {
+        merged = merged ? (turf.union(merged, poly) as any) : poly;
+      } catch {
+        // nếu union lỗi topo hiếm gặp, fallback: vẽ rời (không crash)
+        merged = merged ?? poly;
       }
-    } catch {
-      donutFeature = detectUnionFeature as any;
     }
 
-    const donutFC = donutFeature
-      ? turf.featureCollection([donutFeature])
-      : turf.featureCollection([]);
+    // Tách MultiPolygon thành list Polygon để Mapbox hiển thị đủ mọi mảnh (kể cả mảnh rời)
+    const detectPieces: turf.Feature<turf.Polygon>[] = [];
+    if (merged) {
+      turf.flattenEach(merged, (f) => {
+        if (f.geometry.type === "Polygon") detectPieces.push(f as turf.Feature<turf.Polygon>);
+      });
+    }
+    const detectMergedFC = turf.featureCollection(detectPieces);
+    const detectOutlineFC = detectMergedFC;
 
-    const blindUnionFC = blindUnionFeature
-      ? turf.featureCollection([blindUnionFeature as any])
-      : turf.featureCollection([]);
-
-    const detectOutlineFC = detectUnionFeature
-      ? turf.featureCollection([detectUnionFeature as any])
-      : turf.featureCollection([]);
+    // Blind giữ nguyên (không merge)
+    const blindFC = turf.featureCollection(blindPolys);
 
     return {
-      donutFC,
-      blindUnionFC,
+      detectMergedFC,
+      blindFC,
       detectOutlineFC,
       blindPtsFC: turf.featureCollection(blindPts),
       detectPtsFC: turf.featureCollection(detectPts),
     };
   }, [coverageList, steps, showPoints]);
 
-  // 4) layers
-  const donutFill: any = {
-    id: `${id}-donut-fill`,
+  // --- Layers ---
+  const detectFill: any = {
+    id: `${id}-detect-fill`,
     type: "fill",
-    paint: {
-      "fill-color": "#16a34a",   // detect
-      "fill-opacity": 0.25
-    }
+    paint: { "fill-color": "#16a34a", "fill-opacity": 0.25 },
   };
-  const donutOutline: any = {
-    id: `${id}-donut-outline`,
+  const detectOutline: any = {
+    id: `${id}-detect-outline`,
     type: "line",
-    paint: { "line-color": "#16a34a", "line-width": 2 }
+    paint: { "line-color": "#16a34a", "line-width": 2 },
   };
 
   const blindFill: any = {
     id: `${id}-blind-fill`,
     type: "fill",
-    paint: {
-      "fill-color": "#86efac",   // blind
-      "fill-opacity": 0.35
-    }
+    paint: { "fill-color": "#86efac", "fill-opacity": 0.5 },
   };
   const blindOutline: any = {
     id: `${id}-blind-outline`,
     type: "line",
-    paint: { "line-color": "#16a34a", "line-width": 1 }
-  };
-
-  const detectOutline: any = {
-    id: `${id}-detect-outline`,
-    type: "line",
-    paint: { "line-color": "#16a34a", "line-width": 1, "line-dasharray": [2, 2] }
+    paint: { "line-color": "#16a34a", "line-width": 1 },
   };
 
   const blindPtsLayer: any = {
     id: `${id}-blind-pts`,
     type: "circle",
-    paint: { "circle-radius": 4, "circle-color": "#86efac", "circle-stroke-width": 1, "circle-stroke-color": "#16a34a" }
+    paint: {
+      "circle-radius": 4,
+      "circle-color": "#86efac",
+      "circle-stroke-width": 1,
+      "circle-stroke-color": "#166534",
+    },
   };
   const detectPtsLayer: any = {
     id: `${id}-detect-pts`,
     type: "circle",
-    paint: { "circle-radius": 4, "circle-color": "#16a34a", "circle-stroke-width": 1, "circle-stroke-color": "#14532d" }
+    paint: {
+      "circle-radius": 4,
+      "circle-color": "#16a34a",
+      "circle-stroke-width": 1,
+      "circle-stroke-color": "#14532d",
+    },
   };
 
   return (
     <>
-      {/* donut: detect \ blind (phần vành xanh lá) */}
-      <Source id={`${id}-donut-src`} type="geojson" data={donutFC}>
-        <Layer {...donutFill} />
-        <Layer {...donutOutline} />
+      {/* 1) Detect union (ở dưới) */}
+      <Source id={`${id}-detect-src`} type="geojson" data={detectMergedFC}>
+        <Layer {...detectFill} />
+        <Layer {...detectOutline} />
       </Source>
 
-      {/* union blind (xanh nhạt) */}
-      <Source id={`${id}-blind-union-src`} type="geojson" data={blindUnionFC}>
+      {/* 2) Blind (ở trên, không merge) */}
+      <Source id={`${id}-blind-src`} type="geojson" data={blindFC}>
         <Layer {...blindFill} />
         <Layer {...blindOutline} />
-      </Source>
-
-      {/* detect union outline (đường đứt để thấy biên tổng) */}
-      <Source id={`${id}-detect-union-outline-src`} type="geojson" data={detectOutlineFC}>
-        <Layer {...detectOutline} />
       </Source>
 
       {showPoints && (
