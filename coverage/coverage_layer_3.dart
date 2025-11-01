@@ -2,27 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-/// rawDetectUnion:  List<List<Map<String, num>>>  // [[{x,y}, ...], ...]
-/// rawBlindVisible: List<List<Map<String, num>>>
-class DonutWithHolesLayer extends StatelessWidget {
+class DonutCoverageLayer extends StatelessWidget {
   final MapController controller;
-  final List<List<Map<String, num>>> rawDetectUnion;
-  final List<List<Map<String, num>>> rawBlindVisible;
-  final double height; // nếu muốn vẽ thêm label bằng MarkerLayer
+  final List<List<LatLng>> detectUnionPolygons;   // outer rings
+  final List<List<LatLng>> blindVisiblePolygons;  // holes
+  final double height; // m, optional
 
-  const DonutWithHolesLayer({
+  const DonutCoverageLayer({
     super.key,
     required this.controller,
-    required this.rawDetectUnion,
-    required this.rawBlindVisible,
+    required this.detectUnionPolygons,
+    required this.blindVisiblePolygons,
     this.height = 120,
   });
 
-  List<LatLng> _ringToLatLng(List<Map<String, num>> ring) => ring
-      .map((p) => LatLng((p['y'] as num).toDouble(), (p['x'] as num).toDouble()))
-      .toList();
-
-  /// Ray-casting: test 1 điểm (p) có nằm trong polygon (ring) hay không
+  /// Test xem 1 điểm có nằm trong polygon hay không (Ray casting)
   bool _pointInPolygon(LatLng p, List<LatLng> ring) {
     bool inside = false;
     for (int i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -38,25 +32,23 @@ class DonutWithHolesLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1) Parse thành List<List<LatLng>>
-    final detectPolys = rawDetectUnion.map(_ringToLatLng).toList();
-    final blindPolys  = rawBlindVisible.map(_ringToLatLng).toList();
-
-    // 2) Gán blindPoly làm hole của detectPoly nếu blind nằm bên trong detect
     final polygons = <Polygon>[];
-    for (final detectRing in detectPolys) {
-      // Tìm các hole thuộc về detectRing (dùng điểm đầu của hole để test)
+
+    // Với mỗi detect polygon -> tạo PolygonLayer có holes (blind nằm trong)
+    for (final outer in detectUnionPolygons) {
       final holesForThisOuter = <List<LatLng>>[];
-      for (final blindRing in blindPolys) {
-        if (blindRing.isEmpty) continue;
-        if (_pointInPolygon(blindRing.first, detectRing)) {
-          holesForThisOuter.add(blindRing);
+
+      for (final hole in blindVisiblePolygons) {
+        if (hole.isEmpty) continue;
+        if (_pointInPolygon(hole.first, outer)) {
+          holesForThisOuter.add(hole);
         }
       }
+
       polygons.add(
         Polygon(
-          points: detectRing,
-          holePointsList: holesForThisOuter, // 👈 tạo donut bằng holes
+          points: outer,
+          holePointsList: holesForThisOuter, // 👈 fill giữa outer & holes
           color: const Color(0xFF16A34A).withOpacity(0.12),
           borderColor: const Color(0xFF14532D),
           borderStrokeWidth: 2,
@@ -68,52 +60,60 @@ class DonutWithHolesLayer extends StatelessWidget {
     return FlutterMap(
       mapController: controller,
       options: MapOptions(
-        initialCenter: detectPolys.isNotEmpty && detectPolys.first.isNotEmpty
-            ? detectPolys.first.first
+        initialCenter: detectUnionPolygons.isNotEmpty
+            ? detectUnionPolygons.first.first
             : const LatLng(21.0278, 105.8342),
         initialZoom: 13,
       ),
       children: [
-        TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        ),
+
+        /// Vẽ vùng donut (detect - blind)
         PolygonLayer(polygons: polygons),
 
-        // (tuỳ chọn) nếu muốn vẽ riêng blindVisible (viền) để debug:
-        // PolygonLayer(
-        //   polygons: blindPolys.map((ring) => Polygon(
-        //     points: ring,
-        //     isFilled: false,
-        //     borderColor: const Color(0xFF166534),
-        //     borderStrokeWidth: 1.5,
-        //   )).toList(),
-        // ),
+        /// (tuỳ chọn) Vẽ riêng blindVisible nếu muốn thấy viền lỗ
+        PolygonLayer(
+          polygons: blindVisiblePolygons
+              .map(
+                (hole) => Polygon(
+                  points: hole,
+                  isFilled: false,
+                  borderColor: const Color(0xFF166534),
+                  borderStrokeWidth: 1.5,
+                ),
+              )
+              .toList(),
+        ),
 
-        // (tuỳ chọn) Marker label độ cao
-        // MarkerLayer(
-        //   markers: [
-        //     for (final ring in detectPolys)
-        //       if (ring.isNotEmpty)
-        //         Marker(
-        //           point: ring[ring.length ~/ 2],
-        //           width: 80,
-        //           height: 30,
-        //           builder: (_) => Container(
-        //             alignment: Alignment.center,
-        //             decoration: BoxDecoration(
-        //               color: Colors.white.withOpacity(0.85),
-        //               borderRadius: BorderRadius.circular(6),
-        //             ),
-        //             child: Text(
-        //               '${height.toStringAsFixed(0)}m',
-        //               style: const TextStyle(
-        //                 color: Color(0xFF166534),
-        //                 fontWeight: FontWeight.w600,
-        //                 fontSize: 12,
-        //               ),
-        //             ),
-        //           ),
-        //         ),
-        //   ],
-        // ),
+        /// (tuỳ chọn) Label độ cao
+        MarkerLayer(
+          markers: [
+            for (final outer in detectUnionPolygons)
+              if (outer.isNotEmpty)
+                Marker(
+                  point: outer[outer.length ~/ 2],
+                  width: 80,
+                  height: 30,
+                  builder: (_) => Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${height.toStringAsFixed(0)}m',
+                      style: const TextStyle(
+                        color: Color(0xFF166534),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+          ],
+        ),
       ],
     );
   }
